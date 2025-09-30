@@ -1,6 +1,5 @@
 import pygame
 import numpy as np
-from typing import Optional, Dict, Tuple
 import random
 import sys
 
