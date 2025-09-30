@@ -8,3 +8,19 @@ __pycache__/
 *.pyc
 *.pyo
 .env
+# IDE files
+.idea/
+*.iml
+*.xml
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+.venv
+
+# OS files
+.DS_Store
+Thumbs.db
