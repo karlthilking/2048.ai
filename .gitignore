@@ -1,0 +1,10 @@
+# IDE files
+.idea/
+*.iml
+*.xml
+
+# Python files
+__pycache__/
+*.pyc
+*.pyo
+.env
