@@ -14,6 +14,13 @@ class Game2048GUI:
         self.cell_padding = 10
         self.grid_padding = 50
 
+        self.actions = {
+            0: 'up',
+            1: 'down',
+            2: 'left',
+            3: 'right'
+        }
+
         self.grid_width = self.grid_size * self.cell_size + (self.grid_size + 1) * self.cell_padding
         self.grid_height = self.grid_width
 
