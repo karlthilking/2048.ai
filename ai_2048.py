@@ -21,27 +21,29 @@ def place_cell(board, coords, val):
 
 # ordered tiles indicate better game state
 def monotonic_rating(board):
-    # horizontal monotonicity
-    for i in range(4):
-        cur, next = 0, 1
-        while next < 4:
-            while next < 4 and board[i, next] == 0:
-                next += 1
-            if next >= 4:
-                next -= 1
-                break
+    def rate_monotonicity_line(line):
+        line = line[line != 0]
+        if len(line) <= 0:
+            return 0
 
-            cur_val = board[i, cur]
-            next_val = board[i, next]
+        increasing_order = decreasing_order = 0
+        for i in range(len(line) - 1):
+            if line[i] <= line[i + 1]:
+                increasing_order += 1
+        for j in range(len(line) - 1):
+            if line[j] >= line[j + 1]:
+                decreasing_order += 1
 
-            if cur_val > next_val:
+        num_pairs = len(line) - 1
+        return max(increasing_order, decreasing_order) / num_pairs
 
-            elif next_val > cur_val:
+    monotonic_score = 0
+    for r in range(4):
+        monotonic_score += rate_monotonicity_line(board[r, :])
+    for c in range(4):
+        monotonic_score += rate_monotonicity_line(board[:, c])
 
-
-    # vertical monotonicity
-    for j in range(4):
-
+    return monotonic_score
 
 # better game state when adjacent tiles have similar values
 def smoothness_rating(board):
@@ -95,12 +97,39 @@ def evaluate(board):
     if is_game_over(board):
         return -float('inf')
 
+    """
+    evaluate state of board based on available cells, monotonicity, smoothness
+    position of the max tile, and the value of the max tile
+    
+    for 6 available cells, a max tile of 512 lying in the corner, smoothness rating
+    is -7 horizontal and -13 vertically: -20, and cells are ordered
+    in decreasing order horizontally and increasing order vertically
+    
+    2  |   |  |
+    8  |4  |  |
+    64 |64 |32|
+    512|128|32|16
+    
+    score = 60000 + 400 + -2000 + 1024000 + 2560 = 1084960
+    
+    poor game state example:
+    
+    8  |16 |4  | 
+    2  |4  |64 |32
+    128|256|32 |2
+    64 |16 |4  |2
+    
+    score = 10000 + (4.25 * 500) + (-54 * 100) + 0 + (256 * 5) = 10000 + 2125 - 5400 + 1280 = 8005
+    
+    difference between desirable game state example and poor game state = 1084960 - 8005 = 1076955
+    """
+
     return (
-        (len(get_empty_cells(board)) * 10000) +
-        (monotonic_rating(board) * 50) +
-        (smoothness_rating(board) * 10) +
-        (max_tile_position_rating(board) * 1000) +
-        (get_max_tile(board)[0] * 10)
+        (len(get_empty_cells(board)) * 1000) +
+        (monotonic_rating(board) * 100) +
+        (smoothness_rating(board) * 50) +
+        (max_tile_position_rating(board) * 200) +
+        (get_max_tile(board)[0])
     )
 
 def execute_move(board, move):
