@@ -110,14 +110,16 @@ class AI20248:
             self.get_max_tile(board)
         )
     def calculate_smoothness(self, board):
-        sum_log_diff = 0
+        smoothness_score = 0
         for i in range(3):
             for j in range(3):
-                if board[i, j] != board[i + 1, j]:
-                    sum_log_diff += np.log2(abs(board[i, j] - board[i + 1, j]))
-                if board[i, j] != board[i, j + 1]:
-                    sum_log_diff += np.log2(abs(board[i, j] - board[i, j + 1]))
-        return sum_log_diff
+                if board[i, j] == 0:
+                    continue
+                if board[i, j] != board[i + 1, j] and board[i + 1, j] != 0:
+                    smoothness_score -= abs(np.log2(board[i, j]) - np.log2(board[i + 1, j]))
+                if board[i, j] != board[i, j + 1] and board[i, j + 1] != 0:
+                    smoothness_score -= abs(np.log2(board[i, j]) - np.log2(board[i, j + 1]))
+        return smoothness_score
 
     def calculate_monotonicity(self, board):
         monotonic_score = 0
@@ -142,13 +144,16 @@ class AI20248:
 
     def calculate_corner_preference(self, board):
         max_tile = self.get_max_tile(board)
-        max_tile_pos = np.argwhere(board == max_tile)[0]
-        if max_tile_pos in [[0, 0], [0, 3], [3, 0], [3, 3]]:
-            return 1000
-        elif max_tile_pos in [board[0, :], board[3, :], board[:, 0], board[:, 3]]:
-            return 250
-        else:
-            return 0
+        corner_positions = [[0, 0], [0, 3], [3, 0], [3, 3]]
+        for corner in corner_positions:
+            row = corner[0], col = corner[1]
+            if board[row, col] == max_tile:
+                return 1000
+        edges = [board[0, :], board[3, :], board[:, 0], board[:, 3]]
+        for edge in edges:
+            if max_tile in edge:
+                return 250
+        return 0
 
     def calculate_available_merges(self, board):
         available_merges = 0
@@ -163,24 +168,34 @@ class AI20248:
         return available_merges
 
     def get_best_move(self, board):
-        best_move, best_value = None, 0
+        best_move = None
+        best_value = 0
         valid_moves = self.get_valid_moves(board)
         for move in valid_moves:
             result_board = self.simulate_move(move, board)
             new_value = self.evaluate_board(result_board)
             if new_value > best_value:
                 best_move, best_value = move, new_value
-        return best_move, best_value
+        return best_move
 
     def expectimax(self, board, depth, is_player_turn):
-        if self.is_game_over(board):
-            return -float('inf')
-        # max node
+        if depth == 0 or self.is_game_over(board):
+            return self.evaluate_board(board)
         if is_player_turn:
-
-        # chance node
+            best_move = self.get_best_move(board)
+            new_board = self.simulate_move(best_move, board)
+            best_value = self.expectimax(new_board, depth - 1, False)
+            return best_value
         else:
-
+            expected_value = 0
+            empty_cells = self.get_empty_cells(board)
+            for cell in empty_cells:
+                result_board_2 = self.place_tile(board, cell, 2)
+                result_board_4 = self.place_tile(board, cell, 4)
+                value_2 = self.expectimax(result_board_2, depth - 1, True)
+                value_4 = self.expectimax(result_board_4, depth - 1, True)
+                expected_value += ((value_2 * 0.9 / len(empty_cells)) + (value_4 * 0.1 / len(empty_cells)))
+            return expected_value
 
 if __name__ == "__main__":
 
