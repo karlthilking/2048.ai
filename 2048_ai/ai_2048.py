@@ -102,13 +102,39 @@ class AI20248:
         return new_board
 
     def evaluate_board(self, board):
+        if self.is_game_over(board):
+            return -float('inf')
+        if self.get_max_tile(board) == 2048:
+            return float('inf')
         return (
-            self.calculate_smoothness(board)  * 200 +
+            self.calculate_smoothness(board)  * 750 +
             self.calculate_monotonicity(board) * 500 +
-            self.calculate_corner_preference(board) +
-            self.calculate_available_merges(board) * 200 +
-            self.get_max_tile(board) * 2
+            self.calculate_corner_preference(board) * 25 +
+            self.calculate_available_merges(board) * 500 +
+            self.get_max_tile(board) * 3 +
+            len(self.get_empty_cells(board)) * 250 -
+            self.calculate_trapped_cells(board) * 500
         )
+
+    def calculate_trapped_cells(self, board):
+        num_trapped_cells = 0
+        for i in range(4):
+            for j in range(4):
+                if board[i, j] == 0:
+                    continue
+                trapped = True
+                if i > 0 and board[i, j] == board[i - 1, j] and board[i - 1, j] != 0:
+                    trapped = False
+                if trapped and i < 0 and board[i, j] == board[i + 1, j] and board[i + 1, j] != 0:
+                    trapped = False
+                if trapped and j < 3 and board[i, j] == board[i, j + 1] and board[i, j + 1] != 0:
+                    trapped = False
+                if trapped and j > 0 and board[i, j] == board[i, j - 1] and board[i, j - 1] != 0:
+                    trapped = False
+                if trapped:
+                    num_trapped_cells += 1
+        return num_trapped_cells
+
     def calculate_smoothness(self, board):
         smoothness_score = 0
         for i in range(3):
@@ -150,8 +176,8 @@ class AI20248:
             if (row, col) in [(0, 0), (0, 3), (3, 0), (3, 3)]:
                 return 1000
             if row == 0 or row == 3 or col == 0 or col == 3:
-                return 250
-        return 0
+                return 100
+        return -250
 
     def calculate_available_merges(self, board):
         available_merges = 0
@@ -166,7 +192,11 @@ class AI20248:
         return available_merges
 
     def get_best_move(self, board):
-        _, best_move = self.expectimax(board, 4, True)
+        max_tile = self.get_max_tile(board)
+        if max_tile <= 64:
+            _, best_move = self.expectimax(board, 4, True)
+        else:
+            _, best_move = self.expectimax(board, 5, True)
         return best_move
 
     def expectimax(self, board, depth, is_player_turn):
@@ -177,7 +207,8 @@ class AI20248:
             best_value, best_move =  -float('inf'), None
             for move in valid_moves:
                 new_board = self.simulate_move(move, board)
-                value = self.expectimax(new_board, depth - 1, False)
+                result = self.expectimax(new_board, depth - 1, False)
+                value = result[0] if isinstance(result, tuple) else result
                 if value > best_value:
                     best_value, best_move = value, move
             return best_value, best_move
@@ -197,15 +228,28 @@ class AI20248:
             return expected_value
 
     def solve(self):
-        self.game.run()
+        pygame.init()
+        clock = pygame.time.Clock()
         while not self.game.is_game_over():
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    return
             current_board = self.game.get_board()
             best_move = self.get_best_move(current_board)
             if best_move:
                 self.game.handle_move(best_move)
+                self.game.draw()
+                clock.tick(2)
             else:
                 break
-
+        while True:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    return
+            self.game.draw()
+            clock.tick(60)
 
 if __name__ == "__main__":
     game = Game2048()
