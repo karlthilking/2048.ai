@@ -3,10 +3,8 @@ import numpy as np
 import random
 import sys
 
-class Game2048GUI:
+class Game2048:
     def __init__(self, width=600, height=700):
-        pygame.init()
-
         self.width = width
         self.height = height
         self.grid_size = 4
@@ -46,6 +44,7 @@ class Game2048GUI:
         self.screen = pygame.display.set_mode((self.width, self.height))
         pygame.display.set_caption("2048 Game")
 
+        pygame.font.init()
         self.font_large = pygame.font.Font(None, 48)
         self.font_medium = pygame.font.Font(None, 36)
         self.font_small = pygame.font.Font(None, 24)
@@ -56,6 +55,7 @@ class Game2048GUI:
         self.won = False
 
         self.reset_game()
+        pygame.init()
 
     def reset_game(self):
         self.board = np.zeros((4, 4), dtype=np.int32)
@@ -64,6 +64,9 @@ class Game2048GUI:
         self.won = False
         self.add_random_tile()
         self.add_random_tile()
+
+    def get_board(self):
+        return self.board
 
     def add_random_tile(self):
         empty_cells = np.argwhere(self.board == 0)
@@ -243,7 +246,7 @@ class Game2048GUI:
         sys.exit()
 
 if __name__ == "__main__":
-    game = Game2048GUI()
+    game = Game2048()
     game.run()
 
 
