@@ -1,9 +1,6 @@
-from time import monotonic
-
 from game_2048 import *
 
 import numpy as np
-import random
 
 class AI20248:
     def __init__(self, game):
@@ -107,13 +104,7 @@ class AI20248:
         if self.get_max_tile(board) == 2048:
             return float('inf')
         return (
-            self.calculate_smoothness(board)  * 750 +
-            self.calculate_monotonicity(board) * 500 +
-            self.calculate_corner_preference(board) * 25 +
-            self.calculate_available_merges(board) * 500 +
-            self.get_max_tile(board) * 3 +
-            len(self.get_empty_cells(board)) * 250 -
-            self.calculate_trapped_cells(board) * 500
+
         )
 
     def calculate_trapped_cells(self, board):
@@ -125,7 +116,7 @@ class AI20248:
                 trapped = True
                 if i > 0 and board[i, j] == board[i - 1, j] and board[i - 1, j] != 0:
                     trapped = False
-                if trapped and i < 0 and board[i, j] == board[i + 1, j] and board[i + 1, j] != 0:
+                if trapped and i < 3 and board[i, j] == board[i + 1, j] and board[i + 1, j] != 0:
                     trapped = False
                 if trapped and j < 3 and board[i, j] == board[i, j + 1] and board[i, j + 1] != 0:
                     trapped = False
@@ -150,22 +141,21 @@ class AI20248:
     def calculate_monotonicity(self, board):
         monotonic_score = 0
         for i in range(4):
-            ascending_score = descending_score = 0
-            for j in range(3):
-                if board[i, j] <= board[i, j + 1]:
-                    ascending_score += 1
-                if board[i, j] >= board[i, j + 1]:
-                    descending_score += 1
-            monotonic_score += max(ascending_score, descending_score)
-
+            row = board[i, :]
+            non_zero = row[row != 0]
+            if len(non_zero) > 1:
+                increasing = all(non_zero[j] <= non_zero[j + 1] for j in range(len(non_zero) - 1))
+                decreasing = all(non_zero[j] >= non_zero[j + 1] for j in range(len(non_zero) - 1))
+                if increasing or decreasing:
+                    monotonic_score += len(non_zero)
         for j in range(4):
-            ascending_score = descending_score = 0
-            for i in range(3):
-                if board[i, j] <= board[i + 1, j]:
-                    ascending_score += 1
-                if board[i, j] >= board[i + 1, j]:
-                    descending_score += 1
-            monotonic_score += max(ascending_score, descending_score)
+            col = board[:, j]
+            non_zero = col[col != 0]
+            if len(non_zero) > 1:
+                increasing = all(non_zero[i] <= non_zero[i + 1] for i in range(len(non_zero) - 1))
+                decreasing = all(non_zero[i] >= non_zero[i + 1] for i in range(len(non_zero) - 1))
+                if increasing or decreasing:
+                    monotonic_score += len(non_zero)
         return monotonic_score
 
     def calculate_corner_preference(self, board):
@@ -190,6 +180,18 @@ class AI20248:
                 if board[i, j] == board[i, j + 1]:
                     available_merges += 1
         return available_merges
+
+    def calculate_available_merges_weighted(self, board):
+        merge_score = 0
+        for i in range(3):
+            for j in range(3):
+                if board[i, j] == 0:
+                    continue
+                if board[i, j] == board[i + 1, j]:
+                    merge_score += board[i, j]
+                if board[i, j] == board[i, j + 1]:
+                    merge_score += board[i, j]
+        return merge_score
 
     def get_best_move(self, board):
         max_tile = self.get_max_tile(board)

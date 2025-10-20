@@ -98,102 +98,56 @@ class AI2048:
     def evaluate_board(self, board):
         if self.is_game_over(board):
             return -float('inf')
-        empty_cells = len(self.get_empty_cells(board))
-        monotonicity = self.calculate_monotonic_score(board)
-        corner_score = self.max_tile_position(board)
-        gradient_score = self.calculate_gradient_bonus(board)
-        merge_potential = self.calculate_merge_potential(board)
-        max_tile_value = np.max(board)
-        return (
-            empty_cells * 300 +
-            monotonicity * 5 +
-            corner_score * 2+
-            gradient_score * 500 +
-            merge_potential * 50 +
-            max_tile_value * 2
-        )
+        position_score = self.calculate_position_score(board)
+        empty_score = self.calculate_empty_score(board)
+        max_tile_score = np.max(board) * 500
+        print(f"Position score: {position_score}, Empty score: {empty_score}")
+        return position_score + empty_score + max_tile_score
 
-    def calculate_monotonic_score(self, board):
+    def calculate_empty_score(self, board):
+        empty_count = len(self.get_empty_cells(board))
+        return (empty_count ** 2) * np.sum(board) * 10000
+
+    def calculate_position_score(self, board):
+        weight_matrix = np.array([
+            [4**15, 4**14, 4**13, 4**12],
+            [4**8, 4**9, 4**10, 4**11],
+            [4**7, 4**6, 4**5, 4**4],
+            [1, 4, 4**2, 4**3]
+        ])
         score = 0
         for i in range(4):
-            row = board[i, :][board[i, :] != 0]
-            if len(row) > 1:
-                increasing = all([row[j] <= row[j + 1] for j in range(len(row) - 1)])
-                decreasing = all([row[j] >= row[j + 1] for j in range(len(row) - 1)])
-                if increasing or decreasing:
-                    score += (len(row) ** 2) * 50
-        for j in range(4):
-            col = board[:, j][board[:, j] != 0]
-            if len(col) > 1:
-                increasing = all([col[i] <= col[i + 1] for i in range(len(col) - 1)])
-                decreasing = all([col[i] >= col[i + 1] for i in range(len(col) - 1)])
-                if increasing or decreasing:
-                    score += (len(col) ** 2) * 50
+            for j in range(4):
+                score += board[i, j] * weight_matrix[i, j]
         return score
 
-    def max_tile_position(self, board):
-        max_tile_positions = np.argwhere(board == np.max(board))
-        best_score = 0
-        for pos in max_tile_positions:
-            row, col = pos[0], pos[1]
-            if (row, col) in [(0, 0), (0, 3), (3, 0), (3, 3)]:
-                return 1000
-            elif row == 0 or row == 3 or col == 0 or col == 3:
-                best_score = max(best_score, 200)
-            else:
-                best_score = max(best_score, -400)
-        return best_score
-
-    def calculate_gradient_bonus(self, board):
-        max_tile = np.max(board)
+    def calculate_gradient_score(self, board):
+        max_val = np.max(board)
+        max_pos = np.unravel_index(np.argmax(board), board.shape)
+        if max_pos != (0, 0):
+            return -1000
         score = 0
-        corners = [(0, 0), (0, 3), (3, 0), (3, 3)]
-        for row, col in corners:
-            directions = []
-            if row == 0 and col == 0:
-                directions = [(0, 1), (1, 0)]
-            elif row == 0 and col == 3:
-                directions = [(1, 0), (0, -1)]
-            elif row == 3 and col == 0:
-                directions = [(-1, 0), (0, 1)]
-            else:
-                directions = [(-1, 0), (0, -1)]
-            for dr, dc in directions:
-                r, c = row + dr, col + dc
-                if 0 <= r < 4 and 0 <= c < 4 and board[r, c] != 0:
-                    if board[r, c] <= board[row, col]:
-                        score += np.log2(board[r, c])
-                break
-        return score
-    def calculate_merge_potential(self, board):
-        merge_score = 0
+        for i in range(3):
+            if board[0, i] >= board[0, i + 1] and board[0, i + 1] > 0:
+                score += board[0, i + 1]
+            if board[i, 0] >= board[i + 1, 0] and board[i + 1, 0] > 0:
+                score += board[i + 1, 0]
+        return score * 2
+
+    def calculate_merge_score(self, board):
+        merges = 0
         for i in range(4):
             for j in range(3):
                 if board[i, j] != 0 and board[i, j] == board[i, j + 1]:
-                    merge_score += board[i, j]
+                    merges += 1
         for i in range(3):
             for j in range(4):
                 if board[i, j] != 0 and board[i, j] == board[i + 1, j]:
-                    merge_score += board[i, j]
-        return merge_score
-
-    # add later
-    # def calculate_snake_pattern(self, board):
+                    merges += 1
+        return merges * 25000
 
     def get_best_move(self, board):
-        max_tile = np.max(board)
-        num_empty_cells = len(self.get_empty_cells(board))
-        if max_tile >= 1024:
-            depth = 6
-        elif max_tile >= 512:
-            depth = 5
-        elif max_tile >= 256:
-            depth = 4
-        elif num_empty_cells <= 4:
-            depth = 5
-        else:
-            depth = 3
-        _, best_move = self.expectimax(board, depth, True)
+        _, best_move = self.expectimax(board, 5, True)
         return best_move
 
     def expectimax(self, board, depth, is_player_turn):
@@ -246,8 +200,10 @@ class AI2048:
 if __name__ == "__main__":
     print("Enter the number of games you want to run: ")
     games = int(input())
+    results = {}
     for i in range(games):
         game = Game2048()
         agent = AI2048(game)
         score, max_tile = agent.solve()
-        print(f"Score: {score}, Best tile: {max_tile}")
+        print(f"Score: {score}, Max tile: {max_tile}")
+        results[i] = [score, max_tile]
