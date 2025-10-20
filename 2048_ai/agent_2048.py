@@ -105,11 +105,11 @@ class AI2048:
         if self.is_game_over(board):
             print(f"Score: {-float('inf')}")
             return -float('inf')
-        empty = self.evaluate_empty_cells(board) * np.sum(board) * 4096
+        empty = self.evaluate_empty_cells(board) * 64 * np.max(board)
+        smooth = self.evaluate_smoothness(board) * 40
         snake = self.evaluate_formation(board)
-        merge = self.evaluate_merge_score(board) * 4096
-        print(f"Empty: {empty}, Snake: {snake}, Merge: {merge}")
-        return snake + empty + merge
+        print(f"Empty: {empty}, Smooth: {smooth}, Snake: {snake}")
+        return empty - smooth + snake
 
     def evaluate_merge_score(self, board):
         score = 0
@@ -128,7 +128,7 @@ class AI2048:
         return score
 
     def evaluate_formation(self, board):
-        return np.sum(np.multiply(board, self.weight_matrix))
+        return np.sum(np.multiply(board, self.weight_matrix)) / 30
 
     def evaluate_empty_cells(self, board):
         return len(self.get_empty_cells(board))
