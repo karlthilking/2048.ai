@@ -107,14 +107,14 @@ class AI2048:
 
     def calculate_empty_score(self, board):
         empty_count = len(self.get_empty_cells(board))
-        return (empty_count ** 2) * np.sum(board) * 200
+        return (empty_count ** 2) * np.sum(board) * 325
 
     def calculate_position_score(self, board):
         weight_matrix = np.array([
-            [4**6, 4**5, 4**4, 4**3],
-            [4**5, 4**4, 4**3, 4**2],
-            [4**4, 4**3, 4**2, 4**1],
-            [4**3, 4**2, 4**1, 4**0]
+            [4**11, 4**10, 4**9, 4**8],
+            [4**8, 4**9, 4**10, 4**11],
+            [4**7, 4**6, 4**5, 4**3],
+            [4**0, 4**0, 4**1, 4**2]
         ])
         score = 0
         for i in range(4):
@@ -145,7 +145,7 @@ class AI2048:
             for j in range(4):
                 if board[i, j] != 0 and board[i, j] == board[i + 1, j]:
                     merges += board[i, j]
-        return merges * 500
+        return merges * 750
 
     def get_best_move(self, board):
         if len(self.get_empty_cells(board)) > 6:
