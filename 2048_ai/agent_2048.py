@@ -6,6 +6,12 @@ import sys
 class AI2048:
     def __init__(self, game):
         self.game = game
+        self.weight_matrix = np.array([
+            [65536, 32768, 16384, 8192],
+            [512, 1024, 2048, 4096],
+            [256, 128, 64, 32],
+            [2, 4, 8, 16]
+        ])
 
     def get_empty_cells(self, board):
         empty_cells = []
@@ -99,59 +105,64 @@ class AI2048:
         if self.is_game_over(board):
             print(f"Score: {-float('inf')}")
             return -float('inf')
-        empty_score = self.calculate_empty_score(board)
-        position_score = self.calculate_position_score(board)
-        merge_score = self.calculate_merge_score(board)
-        print(f"Empty: {empty_score}, Position: {position_score}, Merge: {merge_score}")
-        return position_score + empty_score + merge_score
+        empty = self.evaluate_empty_cells(board) * np.sum(board) * 4096
+        snake = self.evaluate_formation(board)
+        merge = self.evaluate_merge_score(board) * 4096
+        print(f"Empty: {empty}, Snake: {snake}, Merge: {merge}")
+        return snake + empty + merge
 
-    def calculate_empty_score(self, board):
-        empty_count = len(self.get_empty_cells(board))
-        return (empty_count ** 2) * np.sum(board) * 325
-
-    def calculate_position_score(self, board):
-        weight_matrix = np.array([
-            [4**11, 4**10, 4**9, 4**8],
-            [4**8, 4**9, 4**10, 4**11],
-            [4**7, 4**6, 4**5, 4**3],
-            [4**0, 4**0, 4**1, 4**2]
-        ])
+    def evaluate_merge_score(self, board):
         score = 0
-        for i in range(4):
-            for j in range(4):
-                score += board[i, j] * weight_matrix[i, j]
-        return score
-
-    def calculate_gradient_score(self, board):
-        max_val = np.max(board)
-        max_pos = np.unravel_index(np.argmax(board), board.shape)
-        if max_pos != (0, 0):
-            return -1000
-        score = 0
-        for i in range(3):
-            if board[0, i] >= board[0, i + 1] and board[0, i + 1] > 0:
-                score += board[0, i + 1]
-            if board[i, 0] >= board[i + 1, 0] and board[i + 1, 0] > 0:
-                score += board[i + 1, 0]
-        return score * 2
-
-    def calculate_merge_score(self, board):
-        merges = 0
         for i in range(4):
             for j in range(3):
-                if board[i, j] != 0 and board[i, j] == board[i, j + 1]:
-                    merges += board[i, j]
+                if board[i, j] == 0:
+                    continue
+                if board[i, j] == board[i, j + 1]:
+                    score += board[i, j]
         for i in range(3):
             for j in range(4):
-                if board[i, j] != 0 and board[i, j] == board[i + 1, j]:
-                    merges += board[i, j]
-        return merges * 750
+                if board[i, j] == 0:
+                    continue
+                if board[i, j] == board[i + 1, j]:
+                    score += board[i, j]
+        return score
+
+    def evaluate_formation(self, board):
+        return np.sum(np.multiply(board, self.weight_matrix))
+
+    def evaluate_empty_cells(self, board):
+        return len(self.get_empty_cells(board))
+
+    def evaluate_smoothness(self, board):
+        penalty = 0
+        for i in range(4):
+            for j in range(3):
+                if board[i, j] == 0:
+                    continue
+                penalty += abs(board[i, j] - board[i, j + 1])
+        for i in range(3):
+            for j in range(4):
+                if board[i, j] == 0:
+                    continue
+                penalty += abs(board[i, j] - board[i + 1, j])
+        return penalty
+
+    def evaluate_distance(self, board):
+        penalty = 0
+        constant = 30
+        for i in range(4):
+            for j in range(4):
+                if board[i, j] == 0:
+                    continue
+                distance = min(i + j, abs(i - 3) + abs(j - 3))
+                penalty += board[i, j] * constant * distance
+        return penalty
 
     def get_best_move(self, board):
-        if len(self.get_empty_cells(board)) > 6:
-            depth = 5
+        if np.max(board) <= 64:
+            depth = 4
         else:
-            depth = 6
+            depth = 5
         _, best_move = self.expectimax(board, depth, True)
         return best_move
 
@@ -172,16 +183,13 @@ class AI2048:
             empty_cells = self.get_empty_cells(board)
             expected_value = 0
             for cell in empty_cells:
-                new_board_2 = self.place_tile(board, cell, 2)
-                # new_board_4 = self.place_tile(board, cell, 4)
-                probability_2 = (1 / len(empty_cells))
-                # probability_4 = (0.1 / len(empty_cells))
-                result_2 = self.expectimax(new_board_2, depth - 1, True)
-                # result_4 = self.expectimax(new_board_4, depth - 1, True)
+                board_2 = self.place_tile(board, cell, 2)
+                board_4 = self.place_tile(board, cell, 4)
+                result_2 = self.expectimax(board_2, depth - 1, True)
+                result_4 = self.expectimax(board_4, depth - 1, True)
                 value_2 = result_2[0] if isinstance(result_2, tuple) else result_2
-                # value_4 = result_4[0] if isinstance(result_4, tuple) else result_4
-                expected_value += (probability_2 * value_2)
-                # + (probability_4 * value_4))
+                value_4 = result_4[0] if isinstance(result_4, tuple) else result_4
+                expected_value += ((0.9 / len(empty_cells)) * value_2) + ((0.1 / len(empty_cells)) * value_4)
             return expected_value
 
     def solve(self):
@@ -206,10 +214,18 @@ class AI2048:
 if __name__ == "__main__":
     print("Enter the number of games you want to run: ")
     games = int(input())
+    print("Do you want to save your results? (y/n): ")
+    save = True if input().split()[0].lower() == 'y' else False
+    if save:
+        print("Enter current config name: ")
+        config_name = input().split()
     results = {}
     for i in range(games):
         game = Game2048()
         agent = AI2048(game)
         score, max_tile = agent.solve()
         print(f"Score: {score}, Max tile: {max_tile}")
-        results[i] = [score, max_tile]
+        results[i] = f"Score: {score}, Max tile: {max_tile}"
+    if save:
+        with open(f"{config_name}.json", "w") as f:
+            json.dump(results, f, indent=4)
