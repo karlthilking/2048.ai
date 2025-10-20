@@ -97,23 +97,24 @@ class AI2048:
 
     def evaluate_board(self, board):
         if self.is_game_over(board):
+            print(f"Score: {-float('inf')}")
             return -float('inf')
-        position_score = self.calculate_position_score(board)
         empty_score = self.calculate_empty_score(board)
-        max_tile_score = np.max(board) * 500
-        print(f"Position score: {position_score}, Empty score: {empty_score}")
-        return position_score + empty_score + max_tile_score
+        position_score = self.calculate_position_score(board)
+        merge_score = self.calculate_merge_score(board)
+        print(f"Empty: {empty_score}, Position: {position_score}, Merge: {merge_score}")
+        return position_score + empty_score + merge_score
 
     def calculate_empty_score(self, board):
         empty_count = len(self.get_empty_cells(board))
-        return (empty_count ** 2) * np.sum(board) * 10000
+        return (empty_count ** 2) * np.sum(board) * 200
 
     def calculate_position_score(self, board):
         weight_matrix = np.array([
-            [4**15, 4**14, 4**13, 4**12],
-            [4**8, 4**9, 4**10, 4**11],
-            [4**7, 4**6, 4**5, 4**4],
-            [1, 4, 4**2, 4**3]
+            [4**6, 4**5, 4**4, 4**3],
+            [4**5, 4**4, 4**3, 4**2],
+            [4**4, 4**3, 4**2, 4**1],
+            [4**3, 4**2, 4**1, 4**0]
         ])
         score = 0
         for i in range(4):
@@ -139,15 +140,19 @@ class AI2048:
         for i in range(4):
             for j in range(3):
                 if board[i, j] != 0 and board[i, j] == board[i, j + 1]:
-                    merges += 1
+                    merges += board[i, j]
         for i in range(3):
             for j in range(4):
                 if board[i, j] != 0 and board[i, j] == board[i + 1, j]:
-                    merges += 1
-        return merges * 25000
+                    merges += board[i, j]
+        return merges * 500
 
     def get_best_move(self, board):
-        _, best_move = self.expectimax(board, 5, True)
+        if len(self.get_empty_cells(board)) > 6:
+            depth = 5
+        else:
+            depth = 6
+        _, best_move = self.expectimax(board, depth, True)
         return best_move
 
     def expectimax(self, board, depth, is_player_turn):
@@ -168,14 +173,15 @@ class AI2048:
             expected_value = 0
             for cell in empty_cells:
                 new_board_2 = self.place_tile(board, cell, 2)
-                new_board_4 = self.place_tile(board, cell, 4)
-                probability_2 = (0.9 / len(empty_cells))
-                probability_4 = (0.1 / len(empty_cells))
+                # new_board_4 = self.place_tile(board, cell, 4)
+                probability_2 = (1 / len(empty_cells))
+                # probability_4 = (0.1 / len(empty_cells))
                 result_2 = self.expectimax(new_board_2, depth - 1, True)
-                result_4 = self.expectimax(new_board_4, depth - 1, True)
+                # result_4 = self.expectimax(new_board_4, depth - 1, True)
                 value_2 = result_2[0] if isinstance(result_2, tuple) else result_2
-                value_4 = result_4[0] if isinstance(result_4, tuple) else result_4
-                expected_value += ((probability_2 * value_2) + (probability_4 * value_4))
+                # value_4 = result_4[0] if isinstance(result_4, tuple) else result_4
+                expected_value += (probability_2 * value_2)
+                # + (probability_4 * value_4))
             return expected_value
 
     def solve(self):
