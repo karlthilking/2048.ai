@@ -1,19 +1,25 @@
-from sympy.stats.rv import probability
-
 from game_2048 import *
 import numpy as np
 import json
 import sys
 
 class AI2048:
-    def __init__(self, game):
-        self.game = game
+    def __init__(self, config):
         self.weight_matrix = np.array([
             [65536, 32768, 16384, 8192],
             [512, 1024, 2048, 4096],
             [256, 128, 64, 32],
             [2, 4, 8, 16]
         ])
+        self.game = None
+        self.algo = config['algorithm']
+        self.depth = config['depth']
+        self.var_depth = config['variable_depth']
+        self.max_depth = config['max_depth']
+        self.min_depth = config['min_depth']
+        self.save_results = config['save_results']
+        self.output_file = config['output_file']
+        self.num_games = config['num_games']
 
     def get_empty_tiles(self, board):
         empty_tiles = []
@@ -111,12 +117,12 @@ class AI2048:
 
     def get_best_action(self, board, algorithm, depth):
         match algorithm:
-            case 'expectimax':
-                return self.expectimax(board, depth, True)
-            case 'minimax':
-                return self.minimax(board, depth, True)
-            case 'alphabeta':
-                return self.alphabeta(board, depth, True, -float('inf'), float('inf'))
+            case "expectimax":
+                return self.expectimax(board, depth, True)[1]
+            case "minimax":
+                return self.minimax(board, depth, True)[1]
+            case "alphabeta":
+                return self.alphabeta(board, depth, True, -float('inf'), float('inf'))[1]
             case _:
                 return None
 
@@ -195,6 +201,31 @@ class AI2048:
                     return None, None
             return beta, None
 
-    def play(self):
+    def play(self, algorithm_choice, depth_choice):
         pygame.init()
-        clock
+        clock = pygame.time.Clock()
+        while not self.game.is_game_over():
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+            current_board = self.game.get_board()
+            best_action = self.get_best_action(current_board, algorithm_choice, depth_choice)
+            if best_action:
+                self.game.handle_move(best_action)
+                self.game.draw()
+                clock.tick(2)
+            else:
+                break
+        pygame.quit()
+        return self.game.score, np.max(self.game.board)
+
+    def run(self):
+        results = {}
+        for i in range(self.num_games):
+            self.game = Game2048()
+            score, max_tile = self.play(self.algo, self.depth)
+            results[i] = (score, max_tile)
+        if self.save_results:
+            with open(self.output_file, 'w') as f:
+                json.dump(results, f)
