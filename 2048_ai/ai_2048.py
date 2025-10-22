@@ -1,21 +1,29 @@
+from sympy.stats.rv import probability
+
 from game_2048 import *
-
 import numpy as np
+import json
+import sys
 
-class AI20248:
+class AI2048:
     def __init__(self, game):
         self.game = game
-        self.board = game.board
+        self.weight_matrix = np.array([
+            [65536, 32768, 16384, 8192],
+            [512, 1024, 2048, 4096],
+            [256, 128, 64, 32],
+            [2, 4, 8, 16]
+        ])
 
-    def get_empty_cells(self, board):
-        empty_cells = []
+    def get_empty_tiles(self, board):
+        empty_tiles = []
         for i in range(4):
             for j in range(4):
                 if board[i, j] == 0:
-                    empty_cells.append([i, j])
-        return empty_cells
+                    empty_tiles.append([i, j])
+        return empty_tiles
 
-    def is_game_over(self, board):
+    def game_over(self, board):
         for i in range(4):
             for j in range(4):
                 if board[i, j] == 0:
@@ -26,39 +34,30 @@ class AI20248:
                     return False
         return True
 
-    def copy_board(self, board):
-        return board.copy()
+    def get_actions(self, board):
+        all_actions = ['up', 'down', 'left', 'right']
+        actions = []
+        for action in all_actions:
+            temp = self.execute_action(action, board)
+            if not np.array_equal(temp, board):
+                actions.append(action)
+        return actions
 
-    def board_equals(self, board1, board2):
-        return np.array_equal(board1, board2)
-
-    def get_valid_moves(self, board):
-        all_moves = ['left', 'right', 'up', 'down']
-        valid_moves = []
-        for move in all_moves:
-            temp_board = self.simulate_move(move, board)
-            if not self.board_equals(temp_board, board):
-                valid_moves.append(move)
-        return valid_moves
-
-    def get_max_tile(self, board):
-        return np.max(board)
-
-    def simulate_move(self, move, board):
-        match move:
+    def execute_action(self, action, board):
+        match action:
             case 'left':
-                return self.simulate_left_move(board)
+                return self.execute_left(board)
             case 'right':
-                return self.simulate_right_move(board)
+                return self.execute_right(board)
             case 'up':
-                return self.simulate_up_move(board)
+                return self.execute_up(board)
             case 'down':
-                return self.simulate_down_move(board)
+                return self.execute_down(board)
             case _:
                 return None
 
-    def simulate_left_move(self, board):
-        new_board = self.copy_board(board)
+    def execute_left(self, board):
+        new_board = board.copy()
         for i in range(4):
             row = new_board[i, :]
             non_zero = row[row != 0]
@@ -75,194 +74,127 @@ class AI20248:
             new_board[i, :] = new_row
         return new_board
 
-    def simulate_right_move(self, board):
-        new_board = self.copy_board(board)
+    def execute_right(self, board):
+        new_board = board.copy()
         new_board = np.fliplr(new_board)
-        new_board = self.simulate_left_move(new_board)
+        new_board = self.execute_left(new_board)
         return np.fliplr(new_board)
 
-    def simulate_up_move(self, board):
-        new_board = self.copy_board(board)
+    def execute_up(self, board):
+        new_board = board.copy()
         new_board = new_board.T
-        new_board = self.simulate_left_move(new_board)
+        new_board = self.execute_left(new_board)
         return new_board.T
 
-    def simulate_down_move(self, board):
-        new_board = self.copy_board(board)
+    def execute_down(self, board):
+        new_board = board.copy()
         new_board = new_board.T
-        new_board = self.simulate_right_move(new_board)
+        new_board = self.execute_right(new_board)
         return new_board.T
 
-    def place_tile(self, board, position, value):
-        new_board = self.copy_board(board)
-        new_board[position] = value
+    def place_tile(self, board, tile, value):
+        new_board = board.copy()
+        new_board[tile] = value
         return new_board
 
     def evaluate_board(self, board):
-        if self.is_game_over(board):
+        if self.game_over(board):
             return -float('inf')
-        if self.get_max_tile(board) == 2048:
-            return float('inf')
-        return (
+        formation = self.formation_score(board)
+        return formation
 
-        )
+    def formation_score(self, board):
+        return np.sum(np.multiply(board, self.weight_matrix))
 
-    def calculate_trapped_cells(self, board):
-        num_trapped_cells = 0
-        for i in range(4):
-            for j in range(4):
-                if board[i, j] == 0:
-                    continue
-                trapped = True
-                if i > 0 and board[i, j] == board[i - 1, j] and board[i - 1, j] != 0:
-                    trapped = False
-                if trapped and i < 3 and board[i, j] == board[i + 1, j] and board[i + 1, j] != 0:
-                    trapped = False
-                if trapped and j < 3 and board[i, j] == board[i, j + 1] and board[i, j + 1] != 0:
-                    trapped = False
-                if trapped and j > 0 and board[i, j] == board[i, j - 1] and board[i, j - 1] != 0:
-                    trapped = False
-                if trapped:
-                    num_trapped_cells += 1
-        return num_trapped_cells
+    def empty_score(self, board):
+        return len(self.get_empty_tiles(board))
 
-    def calculate_smoothness(self, board):
-        smoothness_score = 0
-        for i in range(3):
-            for j in range(3):
-                if board[i, j] == 0:
-                    continue
-                if board[i, j] != board[i + 1, j] and board[i + 1, j] != 0:
-                    smoothness_score -= abs(np.log2(board[i, j]) - np.log2(board[i + 1, j]))
-                if board[i, j] != board[i, j + 1] and board[i, j + 1] != 0:
-                    smoothness_score -= abs(np.log2(board[i, j]) - np.log2(board[i, j + 1]))
-        return smoothness_score
+    def get_best_action(self, board, algorithm, depth):
+        match algorithm:
+            case 'expectimax':
+                return self.expectimax(board, depth, True)
+            case 'minimax':
+                return self.minimax(board, depth, True)
+            case 'alphabeta':
+                return self.alphabeta(board, depth, True, -float('inf'), float('inf'))
+            case _:
+                return None
 
-    def calculate_monotonicity(self, board):
-        monotonic_score = 0
-        for i in range(4):
-            row = board[i, :]
-            non_zero = row[row != 0]
-            if len(non_zero) > 1:
-                increasing = all(non_zero[j] <= non_zero[j + 1] for j in range(len(non_zero) - 1))
-                decreasing = all(non_zero[j] >= non_zero[j + 1] for j in range(len(non_zero) - 1))
-                if increasing or decreasing:
-                    monotonic_score += len(non_zero)
-        for j in range(4):
-            col = board[:, j]
-            non_zero = col[col != 0]
-            if len(non_zero) > 1:
-                increasing = all(non_zero[i] <= non_zero[i + 1] for i in range(len(non_zero) - 1))
-                decreasing = all(non_zero[i] >= non_zero[i + 1] for i in range(len(non_zero) - 1))
-                if increasing or decreasing:
-                    monotonic_score += len(non_zero)
-        return monotonic_score
-
-    def calculate_corner_preference(self, board):
-        max_tile = self.get_max_tile(board)
-        max_positions = np.argwhere(board == max_tile)
-        for pos in max_positions:
-            row, col = pos[0], pos[1]
-            if (row, col) in [(0, 0), (0, 3), (3, 0), (3, 3)]:
-                return 1000
-            if row == 0 or row == 3 or col == 0 or col == 3:
-                return 100
-        return -250
-
-    def calculate_available_merges(self, board):
-        available_merges = 0
-        for i in range(3):
-            for j in range(3):
-                if board[i, j] == 0:
-                    continue
-                if board[i, j] == board[i + 1, j]:
-                    available_merges += 1
-                if board[i, j] == board[i, j + 1]:
-                    available_merges += 1
-        return available_merges
-
-    def calculate_available_merges_weighted(self, board):
-        merge_score = 0
-        for i in range(3):
-            for j in range(3):
-                if board[i, j] == 0:
-                    continue
-                if board[i, j] == board[i + 1, j]:
-                    merge_score += board[i, j]
-                if board[i, j] == board[i, j + 1]:
-                    merge_score += board[i, j]
-        return merge_score
-
-    def get_best_move(self, board):
-        max_tile = self.get_max_tile(board)
-        if max_tile <= 64:
-            _, best_move = self.expectimax(board, 4, True)
-        else:
-            _, best_move = self.expectimax(board, 5, True)
-        return best_move
-
-    def expectimax(self, board, depth, is_player_turn):
-        if depth == 0 or self.is_game_over(board):
+    def expectimax(self, board, depth, max_node):
+        if depth == 0 or self.game_over(board):
             return self.evaluate_board(board), None
-        if is_player_turn:
-            valid_moves = self.get_valid_moves(board)
-            best_value, best_move =  -float('inf'), None
-            for move in valid_moves:
-                new_board = self.simulate_move(move, board)
-                result = self.expectimax(new_board, depth - 1, False)
-                value = result[0] if isinstance(result, tuple) else result
-                if value > best_value:
-                    best_value, best_move = value, move
-            return best_value, best_move
+        if max_node:
+            actions = self.get_actions(board)
+            max_value, max_action = -float('inf'), None
+            for action in actions:
+                new_board = self.execute_action(action, board)
+                value = self.expectimax(new_board, depth - 1, False)[0]
+                if value > max_value:
+                    max_value, max_action = value, action
+            return max_value, max_action
         else:
-            empty_cells = self.get_empty_cells(board)
+            empty_tiles = self.get_empty_tiles(board)
             expected_value = 0
-            for cell in empty_cells:
-                board_2 = self.place_tile(board, cell, 2)
-                board_4 = self.place_tile(board, cell, 4)
-                probability_2 = (0.9 / len(empty_cells))
-                probability_4 = (0.1 / len(empty_cells))
-                result_2 = self.expectimax(board_2, depth - 1, True)
-                result_4 = self.expectimax(board_4, depth - 1, True)
-                value_2 = result_2[0] if isinstance(result_2, tuple) else result_2
-                value_4 = result_4[0] if isinstance(result_4, tuple) else result_4
-                expected_value += (probability_2 * value_2) + (probability_4 * value_4)
-            return expected_value
+            for tile in empty_tiles:
+                board_2 = self.place_tile(board, tile, 2)
+                board_4 = self.place_tile(board, tile, 4)
+                value_2 = self.expectimax(board_2, depth - 1, True)[0]
+                value_4 = self.expectimax(board_4, depth - 1, True)[0]
+                probability_2 = (0.9 / len(empty_tiles))
+                probability_4 = (0.1 / len(empty_tiles))
+                expected_value += ((value_2 * probability_2) + (value_4 * probability_4))
+            return expected_value, None
 
-    def solve(self):
+    def minimax(self, board, depth, max_node):
+        if depth == 0 or self.game_over(board):
+            return self.evaluate_board(board), None
+        if max_node:
+            actions = self.get_actions(board)
+            max_value, max_action = -float('inf'), None
+            for action in actions:
+                new_board = self.execute_action(action, board)
+                value = self.minimax(new_board, depth - 1, False)[0]
+                if value > max_value:
+                    max_value, max_action = value, action
+            return max_value, max_action
+        else:
+            empty_tiles = self.get_empty_tiles(board)
+            min_value = float('inf')
+            for tile in empty_tiles:
+                board_2 = self.place_tile(board, tile, 2)
+                value_2 = self.minimax(board_2, depth - 1, True)[0]
+                board_4 = self.place_tile(board, tile, 4)
+                value_4 = self.minimax(board_4, depth - 1, True)[0]
+                min_value = min(min_value, value_2, value_4)
+            return min_value, None
+
+    def alphabeta(self, board, depth, max_node, alpha, beta):
+        if depth == 0 or self.game_over(board):
+            return self.evaluate_board(board), None
+        if max_node:
+            actions = self.get_actions(board)
+            max_action = None
+            for action in actions:
+                new_board = self.execute_action(action, board)
+                value = self.alphabeta(new_board, depth - 1, False, alpha, beta)
+                if value > alpha:
+                    alpha = value
+                    max_action = action
+                if alpha > beta:
+                    return None, None
+            return alpha, max_action
+        else:
+            empty_tiles = self.get_empty_tiles(board)
+            for tile in empty_tiles:
+                board_2 = self.place_tile(board, tile, 2)
+                value_2 = self.alphabeta(board_2, depth - 1, True, alpha, beta)
+                board_4 = self.place_tile(board, tile, 4)
+                value_4 = self.alphabeta(board_4, depth - 1, True, alpha, beta)
+                beta = min(beta, value_2, value_4)
+                if alpha > beta:
+                    return None, None
+            return beta, None
+
+    def play(self):
         pygame.init()
-        clock = pygame.time.Clock()
-        while not self.game.is_game_over():
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    pygame.quit()
-                    return
-            current_board = self.game.get_board()
-            best_move = self.get_best_move(current_board)
-            if best_move:
-                self.game.handle_move(best_move)
-                self.game.draw()
-                clock.tick(2)
-            else:
-                break
-        while True:
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    pygame.quit()
-                    return
-            self.game.draw()
-            clock.tick(60)
-
-if __name__ == "__main__":
-    game = Game2048()
-    agent = AI20248(game)
-    agent.solve()
-
-
-
-
-
-
-
-
-
+        clock
